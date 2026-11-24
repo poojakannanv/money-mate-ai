@@ -47,7 +47,7 @@ export default async function LandingPage() {
           <div className="container flex flex-col items-center gap-6 py-20 text-center md:py-28">
             <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
-              Powered by Claude with function calling
+              AI function calling over your real transactions
             </span>
             <h1 className="max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
               Your AI personal finance co-pilot for UK life
@@ -98,7 +98,7 @@ export default async function LandingPage() {
                 <CardTitle>Any UK bank, one upload</CardTitle>
                 <CardDescription>
                   Drop in a CSV from Monzo, Starling or a generic export.
-                  Duplicates are detected automatically, and Claude categorises
+                  Duplicates are detected automatically, and the AI categorises
                   every transaction with a confidence score and a reason.
                 </CardDescription>
               </CardHeader>

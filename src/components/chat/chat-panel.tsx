@@ -22,6 +22,29 @@ const TOOL_LABELS: Record<string, string> = {
   compareSpending: "Comparing two months",
 };
 
+/**
+ * Models often reply with light markdown. Render the common inline parts
+ * (**bold** and `code`) and turn heading markers into bold lines, without
+ * pulling in a full markdown library. Text is rendered as React nodes, never
+ * as HTML, so model output cannot inject markup.
+ */
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const cleaned = text.replace(/^#{1,6}\s+(.+)$/gm, "**$1**");
+  return cleaned.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code key={i} className="rounded bg-background/60 px-1 text-[0.85em]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+}
+
 export function ChatPanel() {
   const {
     messages,
@@ -128,7 +151,9 @@ export function ChatPanel() {
                         : "rounded-bl-sm bg-muted"
                     )}
                   >
-                    {message.content}
+                    {message.role === "user"
+                      ? message.content
+                      : renderInlineMarkdown(message.content)}
                   </div>
                 ) : null}
               </div>
