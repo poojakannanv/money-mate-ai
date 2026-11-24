@@ -2,9 +2,25 @@
 
 **An AI personal finance co-pilot for UK households.**
 
-Upload a bank statement, get every transaction categorised by Claude in seconds, ask your money anything in plain English, and receive a weekly insights digest with one concrete action. Built for the UK cost-of-living squeeze, with categories like Council Tax and Transport (Tube and Rail) that generic finance apps do not have.
+Upload a bank statement, get every transaction categorised by AI in seconds, ask your money anything in plain English, and receive a weekly insights digest with one concrete action. Built for the UK cost-of-living squeeze, with categories like Council Tax and Transport (Tube and Rail) that generic finance apps do not have.
 
 Built by Pooja Kannan as a UK web developer portfolio project.
+
+**Live demo:** https://money-mate-ai-indol.vercel.app
+
+## Screenshots
+
+**Dashboard:** spend by category, six-month trend and unusual-spend flags, all from an uploaded statement.
+
+![MoneyMate AI dashboard](docs/screenshots/dashboard.png)
+
+**Chat:** plain-English questions answered from real transactions through function calling.
+
+![MoneyMate AI chat](docs/screenshots/chat.png)
+
+**Upload:** drag and drop a Monzo, Starling or generic CSV.
+
+![MoneyMate AI upload page](docs/screenshots/upload.png)
 
 ## The Problem
 
