@@ -5,7 +5,7 @@ export function SiteFooter() {
         <p>
           Built by Pooja Kannan as a UK web developer portfolio project.{" "}
           <a
-            href="https://github.com/pooja-kannan/moneymate-ai"
+            href="https://github.com/poojakannanv/money-mate-ai"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-primary underline-offset-4 hover:underline"

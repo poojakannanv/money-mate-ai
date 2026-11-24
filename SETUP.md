@@ -11,8 +11,8 @@ Everything you need to run MoneyMate locally and deploy it to Vercel. Budget abo
 ## 1. Install dependencies
 
 ```bash
-git clone https://github.com/pooja-kannan/moneymate-ai.git
-cd moneymate-ai
+git clone https://github.com/poojakannanv/money-mate-ai.git
+cd money-mate-ai
 npm install
 ```
 
