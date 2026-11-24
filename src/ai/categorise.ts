@@ -3,15 +3,22 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { transactions } from "@/db/schema";
 import { CATEGORIES } from "@/lib/categories";
-import { anthropicClient, extractJson, FAST_MODEL, responseText } from "./models";
+import { generateText } from "ai";
+import { aiProvider, extractJson, fastModel } from "./models";
+import { categoriseByRules } from "./rules";
 
 /**
- * AI transaction categorisation.
+ * Hybrid transaction categorisation.
  *
- * Batches of 20 transactions are sent to Claude with a strict instruction to
- * return JSON only. The reply is validated with zod against the category
- * enum; on a parse or validation failure we retry once with an explicit
- * correction message before giving up on that batch.
+ * 1. Deterministic merchant rules handle well-known UK merchants at no cost.
+ * 2. Whatever is left goes to the AI model in batches of 20, with a strict
+ *    instruction to return JSON only. The reply is validated with zod
+ *    against the category enum; on a parse or validation failure we retry
+ *    once with an explicit correction message.
+ * 3. If no AI provider is configured, or a batch still fails, those rows get
+ *    a low-confidence fallback so the dashboard never shows a blank.
+ *
+ * Set CATEGORISER=ai to skip step 1 and send every row to the model.
  */
 
 export const BATCH_SIZE = 20;
@@ -62,28 +69,23 @@ Respond with ONLY a JSON array, no prose, in this shape:
 
 Include every input id exactly once. Confidence is a number from 0 to 1.`;
 
-async function callClaudeForBatch(
+async function callModelForBatch(
   batch: BatchInput[],
   correction?: string
 ): Promise<CategorisationResult[]> {
-  const client = anthropicClient();
   const userContent = correction
     ? `${JSON.stringify(batch)}\n\nIMPORTANT: A previous attempt failed validation (${correction}). Respond with ONLY the JSON array described in the system prompt, nothing else.`
     : JSON.stringify(batch);
-  const messages: { role: "user"; content: string }[] = [
-    { role: "user", content: userContent },
-  ];
 
-  const response = await client.messages.create({
-    model: FAST_MODEL,
-    max_tokens: 4000,
+  const { text } = await generateText({
+    model: fastModel(),
+    maxTokens: 4000,
     temperature: 0,
     system: SYSTEM_PROMPT,
-    messages,
+    prompt: userContent,
   });
 
-  const raw = extractJson(responseText(response));
-  return categorisationResponseSchema.parse(raw);
+  return categorisationResponseSchema.parse(extractJson(text));
 }
 
 /** Categorise one batch with a single retry on parse/validation failure. */
@@ -91,11 +93,11 @@ export async function categoriseBatch(
   batch: BatchInput[]
 ): Promise<CategorisationResult[]> {
   try {
-    return await callClaudeForBatch(batch);
+    return await callModelForBatch(batch);
   } catch (firstError) {
     const detail =
       firstError instanceof Error ? firstError.message.slice(0, 300) : "Parse error.";
-    return callClaudeForBatch(batch, detail);
+    return callModelForBatch(batch, detail);
   }
 }
 
@@ -103,6 +105,29 @@ export interface CategoriseRunSummary {
   processed: number;
   updated: number;
   failedBatches: number;
+  /** Rows matched by the deterministic merchant rules. */
+  byRules: number;
+  /** Rows categorised by the AI model. */
+  byAi: number;
+  /** Rows given the low-confidence fallback because AI was unavailable. */
+  byFallback: number;
+}
+
+/** Low-confidence result for rows neither the rules nor the AI could place. */
+function fallbackResult(row: BatchInput): CategorisationResult {
+  return row.amount > 0
+    ? {
+        id: row.id,
+        category: "Income",
+        confidence: 0.4,
+        reasoning: "Money in with no matching rule; AI categoriser unavailable.",
+      }
+    : {
+        id: row.id,
+        category: "Other",
+        confidence: 0.2,
+        reasoning: "No merchant rule matched; AI categoriser unavailable.",
+      };
 }
 
 /**
@@ -128,45 +153,81 @@ export async function categoriseUserTransactions(
     .from(transactions)
     .where(conditions);
 
-  let updated = 0;
+  const inputs: BatchInput[] = rows.map((r) => ({
+    id: r.id,
+    date: r.date,
+    description: r.description,
+    amount: Number(r.amount),
+  }));
+
+  const save = async (result: CategorisationResult) => {
+    await db
+      .update(transactions)
+      .set({
+        category: result.category,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+      })
+      .where(and(eq(transactions.id, result.id), eq(transactions.userId, userId)));
+  };
+
+  let byRules = 0;
+  let byAi = 0;
+  let byFallback = 0;
   let failedBatches = 0;
 
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const slice = rows.slice(i, i + BATCH_SIZE);
-    const batch: BatchInput[] = slice.map((r) => ({
-      id: r.id,
-      date: r.date,
-      description: r.description,
-      amount: Number(r.amount),
-    }));
-
-    let results: CategorisationResult[];
-    try {
-      results = await categoriseBatch(batch);
-    } catch (error) {
-      console.error("Categorisation batch failed after retry:", error);
-      failedBatches += 1;
-      continue;
-    }
-
-    const validIds = new Set(slice.map((r) => r.id));
-    for (const result of results) {
-      if (!validIds.has(result.id)) continue; // never trust ids the model invented
-      await db
-        .update(transactions)
-        .set({
-          category: result.category,
-          confidence: result.confidence,
-          reasoning: result.reasoning,
-        })
-        .where(
-          and(eq(transactions.id, result.id), eq(transactions.userId, userId))
-        );
-      updated += 1;
+  // Step 1: deterministic merchant rules.
+  const useRules = process.env.CATEGORISER?.trim().toLowerCase() !== "ai";
+  const remaining: BatchInput[] = [];
+  for (const row of inputs) {
+    const match = useRules ? categoriseByRules(row.description, row.amount) : null;
+    if (match) {
+      await save({ id: row.id, ...match });
+      byRules += 1;
+    } else {
+      remaining.push(row);
     }
   }
 
-  return { processed: rows.length, updated, failedBatches };
+  // Step 2: the AI model for everything the rules could not place.
+  const aiAvailable = aiProvider() !== null;
+  for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
+    const batch = remaining.slice(i, i + BATCH_SIZE);
+    const done = new Set<string>();
+
+    if (aiAvailable) {
+      try {
+        const results = await categoriseBatch(batch);
+        const validIds = new Set(batch.map((r) => r.id));
+        for (const result of results) {
+          // never trust ids the model invented or repeated
+          if (!validIds.has(result.id) || done.has(result.id)) continue;
+          await save(result);
+          done.add(result.id);
+          byAi += 1;
+        }
+      } catch (error) {
+        console.error("Categorisation batch failed after retry:", error);
+        failedBatches += 1;
+      }
+    }
+
+    // Step 3: fallback for rows the AI skipped or could not be asked about.
+    for (const row of batch) {
+      if (done.has(row.id)) continue;
+      await save(fallbackResult(row));
+      byFallback += 1;
+    }
+  }
+
+  return {
+    processed: rows.length,
+    updated: byRules + byAi + byFallback,
+    failedBatches,
+    byRules,
+    byAi,
+    byFallback,
+  };
 }
 
 /** Clear categories for specific transactions (used before re-categorising). */

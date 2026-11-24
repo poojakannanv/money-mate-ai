@@ -34,10 +34,17 @@ npm install
 2. While testing you can send from `onboarding@resend.dev` with no domain setup. Note that in this mode Resend only delivers to the email address you signed up with, which is fine for a solo demo.
 3. For a public demo, verify a domain in Resend and use something like `MoneyMate AI <login@yourdomain.co.uk>`.
 
-## 4. Anthropic API key
+## 4. AI provider key (free option available)
 
-1. Sign up at https://console.anthropic.com and create an API key.
-2. The app defaults to a Sonnet-class model for chat and a Haiku-class model for batch categorisation and the weekly digest. Override with `ANTHROPIC_CHAT_MODEL` and `ANTHROPIC_FAST_MODEL` if the default model ids have been superseded.
+MoneyMate works with any one of three providers. Pick one:
+
+- **Groq (free tier, recommended for a demo):** create a key at https://console.groq.com/keys and set `GROQ_API_KEY`.
+- **Google Gemini (free tier):** create a key at https://aistudio.google.com/apikey and set `GEMINI_API_KEY`.
+- **Anthropic Claude (pay as you go):** create a key at https://console.anthropic.com and set `ANTHROPIC_API_KEY`. Needs a credit balance.
+
+If more than one key is set, the order above decides; set `AI_PROVIDER` to force one. Override models with `AI_CHAT_MODEL` and `AI_FAST_MODEL` if a default model id has been retired.
+
+With no key at all the app still runs: built-in merchant rules categorise most UK transactions and the weekly digest is computed from the numbers. Only chat needs a provider.
 
 ## 5. Environment variables
 
@@ -53,7 +60,7 @@ Fill in:
 | `AUTH_SECRET` | `npx auth secret` or `openssl rand -base64 32` |
 | `AUTH_RESEND_KEY` | Your Resend API key |
 | `EMAIL_FROM` | e.g. `MoneyMate AI <onboarding@resend.dev>` |
-| `ANTHROPIC_API_KEY` | Your Anthropic key |
+| `GROQ_API_KEY` (or `GEMINI_API_KEY` / `ANTHROPIC_API_KEY`) | Your AI provider key from step 4 |
 
 ## 6. Run locally
 
@@ -71,7 +78,7 @@ npm run dev
 
 1. Push the repo to GitHub.
 2. In Vercel, **Add New Project**, import the repo. Framework preset: Next.js (auto-detected).
-3. Add all five environment variables from step 5 in **Settings, then Environment Variables** (Production and Preview).
+3. Add all the environment variables from step 5 in **Settings, then Environment Variables** (Production and Preview).
 4. Deploy. Vercel builds with `next build` and no extra config is needed.
 5. After the first deploy, update Resend to allow your production domain in any link-tracking settings, and set `AUTH_TRUST_HOST=true` only if you deploy somewhere other than Vercel (Vercel is trusted automatically by Auth.js v5).
 
@@ -91,5 +98,5 @@ npm run dev
 | `DATABASE_URL is not set` at boot | `.env` missing or not loaded; restart `npm run dev` |
 | Magic link never arrives | Resend sandbox mode only sends to your own signup address |
 | `prepared statement` errors from Postgres | You used the session pooler (port 5432); use the transaction pooler URI (6543) |
-| Chat replies but never calls tools | `ANTHROPIC_API_KEY` valid but model id outdated; set `ANTHROPIC_CHAT_MODEL` |
+| Chat errors or never calls tools | Model id outdated or free-tier rate limit hit; set `AI_CHAT_MODEL` or wait a minute |
 | Categorisation slow on big files | Expected: batches of 20 run sequentially; the 2,000 row cap keeps it bounded |

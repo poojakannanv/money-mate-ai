@@ -1,7 +1,6 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import { convertToCoreMessages, streamText } from "ai";
 import { auth } from "@/auth";
-import { CHAT_MODEL } from "@/ai/models";
+import { aiProvider, chatModel } from "@/ai/models";
 import { buildFinanceTools, chatSystemPrompt } from "@/ai/tools";
 import { todayIso } from "@/lib/dates";
 
@@ -18,14 +17,39 @@ export async function POST(req: Request) {
   const body = await req.json();
   const messages = Array.isArray(body?.messages) ? body.messages : [];
 
-  const result = await streamText({
-    model: anthropic(CHAT_MODEL),
-    system: chatSystemPrompt(todayIso()),
-    messages: convertToCoreMessages(messages),
-    tools: buildFinanceTools(userId),
-    maxSteps: 5,
-    temperature: 0.2,
-  });
+  if (aiProvider() === null) {
+    return new Response(
+      "Chat is not set up yet: no AI provider key is configured on the server.",
+      { status: 503 }
+    );
+  }
 
-  return result.toDataStreamResponse();
+  try {
+    const result = await streamText({
+      model: chatModel(),
+      system: chatSystemPrompt(todayIso()),
+      messages: convertToCoreMessages(messages),
+      tools: buildFinanceTools(userId),
+      maxSteps: 5,
+      temperature: 0.2,
+    });
+
+    return result.toDataStreamResponse({
+      getErrorMessage: () =>
+        "The AI provider returned an error part way through. Please try again.",
+    });
+  } catch (error) {
+    console.error("Chat request failed:", error);
+    const rateLimited =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      (error as { statusCode?: number }).statusCode === 429;
+    return new Response(
+      rateLimited
+        ? "The AI provider's free-tier rate limit was reached. Wait a minute and try again."
+        : "The AI provider rejected the request. Check the API key and model settings.",
+      { status: rateLimited ? 429 : 502 }
+    );
+  }
 }

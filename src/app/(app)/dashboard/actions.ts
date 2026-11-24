@@ -26,7 +26,7 @@ export async function recategoriseAllAction(): Promise<RecategoriseSummary> {
       ok: false,
       processed: 0,
       updated: 0,
-      error: "Categorisation failed. Check the Anthropic API key and try again.",
+      error: "Categorisation failed. Check the database connection and try again.",
     };
   }
 }

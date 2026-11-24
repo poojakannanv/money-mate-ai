@@ -32,9 +32,13 @@ export function ChatPanel() {
     append,
   } = useChat({
     api: "/api/chat",
-    onError: () => {
+    onError: (error) => {
+      // The API route returns a short plain-text reason on failure.
+      const reason =
+        error.message && error.message.length < 200 ? error.message : null;
       toast("Chat error", {
         description:
+          reason ??
           "MoneyMate could not respond. Check your connection and try again.",
         variant: "error",
       });

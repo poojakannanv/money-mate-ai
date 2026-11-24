@@ -80,7 +80,7 @@ Chat (/api/chat, Vercel AI SDK streamText + tools, maxSteps)
 | Auth | NextAuth.js (Auth.js v5) + Resend | Magic-link email, no password headaches |
 | Database | Supabase Postgres | Free tier, hosted, simple |
 | ORM | Drizzle | TypeScript-first, lighter than Prisma, SQL-shaped |
-| AI | Anthropic Claude via @anthropic-ai/sdk and the Vercel AI SDK | Function calling, structured output, streaming |
+| AI | Vercel AI SDK with a swappable provider: Groq or Gemini (free tiers) or Anthropic Claude | Function calling, structured output, streaming, no vendor lock-in |
 | Charts | Recharts | React-native charting, no extra dependencies |
 | CSV | Papaparse | Battle-tested CSV parsing in the browser |
 | Hosting | Vercel + Supabase | Free tiers are sufficient for a portfolio deployment |
