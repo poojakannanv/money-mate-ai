@@ -2,6 +2,7 @@
   "name": "moneymate-ai",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "An AI personal finance co-pilot for UK households. Upload a bank statement, get AI categorisation, and chat with your money.",
   "scripts": {
     "dev": "next dev",

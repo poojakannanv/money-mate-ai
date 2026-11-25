@@ -136,3 +136,7 @@ sample-data/      Three realistic UK bank CSVs for demoing
 ## Disclaimer
 
 Demo software, not financial advice. All data stays in the signed-in user's account and is never shared with third parties.
+
+## License
+
+[MIT](./LICENSE)
